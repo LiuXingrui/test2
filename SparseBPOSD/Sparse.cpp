@@ -229,7 +229,7 @@ void Sparse_GF2::row_to_col() {
     }
 
 
-    Sparse_GF2 Sparse_GF2::row_gaussian(int& rankH) const {
+Sparse_GF2 Sparse_GF2::row_gaussian(int& rankH) const {
 		
         Sparse_GF2 H = *this;
         Sparse_GF2 permutation;
@@ -247,22 +247,24 @@ void Sparse_GF2::row_to_col() {
         int pivot_col=-1;
         while (pivot_row<r)
         {
-        	if (H.row_mat[pivot_row].size()!=0){pivot_col=H.row_mat[pivot_row][0];}
-        	for (int i=0;i<r;i++)
-        		{	if(i!=pivot_row)
-        			{	
-        				if (find(H.row_mat[i].begin(), H.row_mat[i].end(), pivot_col) != H.row_mat[i].end()) 
-        				{
-							//false means donot update column representation here
-        					H.add_rows(pivot_row,i,false);
-        					permutation.add_rows(pivot_row,false);
-        				}
-        			}
-        		}       
+        	if (H.row_mat[pivot_row].size()!=0)
+			{
+				pivot_col=H.row_mat[pivot_row][0];
+				
+				for (int i=0;i<r;i++)
+					{	if(i!=pivot_row)
+						{	
+							if (find(H.row_mat[i].begin(), H.row_mat[i].end(), pivot_col) != H.row_mat[i].end()) 
+							{
+								//false means donot update column representation here
+								H.add_rows(pivot_row,i,false);
+								permutation.add_rows(pivot_row,false);
+							}
+						}
+					}	
+        	}       
         pivot_row++;       
     }
-	
-	
 	
     rankH=0;
     for (int i=0;i<num_rows;++i){if(H.row_mat[i].size()!=0){rankH++;}}
@@ -373,12 +375,17 @@ Sparse_GF2 Sparse_GF2::inverse() const {
             permutation.row_mat.push_back({i});
             permutation.col_mat.push_back({i});
         }
+		//Hwrong=permutation.to_GF2mat();
 
         int pivot_row = -1;
         int pivot_col=0;
         while (pivot_col<c)
         {
-        	if (H.col_mat[pivot_col].size()!=0){pivot_row=H.col_mat[pivot_col][0];}
+        	if (H.col_mat[pivot_col].size()!=0)
+			{
+				 //pivot_row=*std::min_element((H.col_mat[pivot_col]).begin(), (H.col_mat[pivot_col]).end());
+				pivot_row=H.col_mat[pivot_col][0];
+					
         	for (int i=0;i<c;i++)
         		{	if(i!=pivot_col)
         			{	
@@ -388,9 +395,11 @@ Sparse_GF2 Sparse_GF2::inverse() const {
         					permutation.add_cols(pivot_col,i,false);
         				}
         			}
-        		}       
+        		}    
+			}				
         pivot_col++;     
     }
+	
     rankH=0;
     for (int i=0;i<num_cols;++i){if(H.col_mat[i].size()!=0){rankH++;}}
     int current_col=0;
@@ -589,29 +598,35 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
 		}
     }
   
-  //now we have H*perm1*perm1_inv*e=s, and def:H1=H*perm1
+
 
 	ivec perm1=sort_index(LLR);
 	Sparse_GF2 H1=H;	
 	Sparse_GF2 perm1_mat=H1.permute_cols(perm1);
+	  //now we have H*perm1*perm1_inv*e=s, and def:H1=H*perm1
 	 
-	 //if (H*perm1_mat!=H1){cout<<"error"<<endl;}
+	// cout<<"Sparse OSD: after perm1 H is "<<H1.to_GF2mat()<<endl;
+	 
 	int rankH=0;
 	//cout<<"before H1 is\n"<<H1.to_GF2mat()<<endl;
 	Sparse_GF2 col_perm=H1.col_gaussian(rankH);
 	H1=H1*col_perm;
+	
+	
+	 //cout<<"Sparse OSD: after col_gaussian H is "<<H1.to_GF2mat()<<endl;
 	Sparse_GF2 row_perm=H1.row_gaussian(rankH);
+	
 	H1=row_perm*H1;
+	//cout<<"Sparse OSD: after row_gaussian H is "<<H1.to_GF2mat()<<endl;
+	
 
 		//cout<<"\n after H1 is\n"<<H1.to_GF2mat()<<endl;
 	Sparse_GF2  sparse_s(syndrome);
 	sparse_s=row_perm*sparse_s;
 	
-	//cout<<"rank is "<<rankH<<endl;
 	sparse_s=sparse_s.get_submatrix(0,0,rankH-1,0);
 	
     if (rankH==0){return;}
-   //if (rankH<r-1) {cout<<"rankH<H.rows()-1, I have not solved this case yet, stop OSD"<<endl;return;}
    
   Sparse_GF2 H_S=H1.get_submatrix(0,0,rankH-1,rankH-1);
   //cout<<"H_S is \n"<<H_S.to_GF2mat()<<endl;
@@ -620,6 +635,7 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
    
  if (H1.cols()>rankH){H_T=H1.get_submatrix(0,rankH,rankH-1,n-1);}
   Sparse_GF2 HS_inv=H_S.inverse();
+ 
 
   Sparse_GF2 e_S=HS_inv*sparse_s;  
 
@@ -636,6 +652,7 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
   
   int temp_count=0;
   Sparse_GF2 new_e_T=e_T;
+ 
  if (OSD_order>=0)
  {
 	 Sparse_GF2 tempmat=HS_inv*sparse_s;
@@ -699,9 +716,10 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
 	
 		  
 		for (int i=0;i<vec_e_S.size();i++){Sparse_output_e.set(vec_e_S[i],0,1);}
+		  
 		for (int i=0;i<vec_e_T.size();i++){Sparse_output_e.set(vec_e_T[i]+vec_e_S.size(),0,1);}
+		Sparse_output_e=perm1_mat*col_perm*Sparse_output_e;	
 		
-		Sparse_output_e=perm1_mat*col_perm*Sparse_output_e;		  	  
 }
 /*
 void initialize_checks (const Sparse_GF2mat &H, nodes checks[]){
@@ -791,8 +809,24 @@ bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const 
 	{
 		int suc_order=0;
 			  Sparse_GF2 Sparse_output_eOSD(v,1);
+			  
 	  Sparse_OSD(sparseH,LR,Hx,syndrome,Sparse_output_eOSD,suc_order,OSD_order);
-
+	  /*
+	  GF2mat output_e(v,1);
+			  GF2mat Hright;
+			  GF2mat Hwrong;
+	   OSD(LR, Hx,syndrome,output_e,suc_order,Hright);
+		if (Hwrong==Hright){}
+		else 
+		{
+			cout<<"error: Hright is\n"<<Hright<<"\n Hwrongis \n"<<Hwrong<<endl;
+		}
+   if (output_e==Sparse_output_eOSD.to_GF2mat()){}
+   else {
+	   cout<<"error : output_e is \n"<<output_e.transpose()<<"\n wrong one:\n"<<(Sparse_output_eOSD.to_GF2mat()).transpose()<<endl;
+   }
+   */
+   
 	  if(sparseL*(Sparse_output_eOSD+Sparse_real_e)==Sparse_zero_rvec)
 	    {
 	      OSD_suc++;
@@ -824,8 +858,7 @@ bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const 
 		for (int i=0;i<vj_degree;i++)
 		{     
 			int ci=(errors[j].neighbors)(i);
-			auto synd_value=syndrome(ci,0);	   
-			update_ci_to_vj(checks, errors,mcv, mvc,ci,j,synd_value);
+			update_ci_to_vj(checks, errors,mcv, mvc,ci,j,syndrome(ci,0));
 			LR(j)=LR(j)*mcv(ci,j);      	
 	   } 
 		//ci is the ith neibor of vj:

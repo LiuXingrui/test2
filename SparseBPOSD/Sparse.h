@@ -49,6 +49,8 @@ public:
         void add_cols(const int& i, const int& j,const bool &update_row=true);
         Sparse_GF2 row_gaussian(int& rankH) const;
         Sparse_GF2 inverse() const;
+		
+		
         Sparse_GF2 col_gaussian(int& rankH) const;	
 		Sparse_GF2 permute_cols(const itpp::ivec& Perm) ;
         static Sparse_GF2 col_permutation_matrix(const itpp::ivec& perm) ;
