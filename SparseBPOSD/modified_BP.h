@@ -146,4 +146,9 @@ void reliability_perm_H (const GF2mat & H, int which_row,GF2mat &output_H,GF2mat
 bool reliability_solve(const GF2mat&H1,const GF2mat&A, const GF2mat &s1, const GF2mat &e2,GF2mat & e1);
 GF2mat reliability_restored_e(const GF2mat col_perm, const GF2mat &e1,const GF2mat &e2);
 bool   circuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const GF2mat &Hx, const GF2mat Gx, GF2mat G,const GF2mat &real_e,GF2mat &final_output_e,const nodes checks1[],const nodes errors1[],const vec&pv_dec,double& num_iter, int lmax,int &wt,  int debug, vec &LR2,int rankH,double M,int&LLR_fail,int&LLR_suc,int& num_fixed_LLR,bool& start_row_reduction,double alpha,int other_decoder,int channel,int max_row_freeze,int OSD_order=100);
+
+bool MBP_del_cols(const Sparse_GF2 &sparse_MH,const Sparse_GF2 &sparse_ML,const Sparse_GF2 &sparseH,
+const Sparse_GF2 &sparseL,const Sparse_GF2&Sparse_real_Me,
+const GF2mat &real_e,const std::vector<vector<int>>& Positions,const nodes checks[],const nodes errors[],const vec&pv_dec,double& num_iter, 
+const int& lmax,const int &wt,  const int& debug, const int& schedule,const int& OSD_order,Sparse_GF2& Sparse_zero_rvec, GF2mat& zero_mat1);
 #endif

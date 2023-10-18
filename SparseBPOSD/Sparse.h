@@ -36,6 +36,7 @@ public:
     int cols() const;
     std::vector<int> get_row(const int& i) const;
     std::vector<int> get_col(const int& j) const;
+	int get(int i, int j) const;
    Sparse_GF2 operator*(const Sparse_GF2& other) const;
     bool operator==(const Sparse_GF2& other) const;
 	bool operator!=(const Sparse_GF2& other) const;
@@ -47,6 +48,8 @@ public:
         itpp::GF2mat to_GF2mat() const;
         void add_rows(const int& i, const int& j,const bool& update_col=true);
         void add_cols(const int& i, const int& j,const bool &update_row=true);
+		 void ins_row(int i, const Sparse_GF2& A);
+    void ins_col(int i, const Sparse_GF2& A);
         Sparse_GF2 row_gaussian(int& rankH) const;
         Sparse_GF2 inverse() const;
 		
@@ -60,10 +63,22 @@ public:
          Sparse_GF2 get_submatrix(const int&  begin_row, const int&  begin_col,const int&  end_row, const int&  end_col) ;
           int col_weight(const int&  i) const;
            int row_weight(const int&  i) const;
-           void set(const int&  i, const int&  j, const int&  value);  
+           void set(const int&  i, const int&  j, const int&  value); 
+ bool checkProductEquality(const Sparse_GF2& B, const Sparse_GF2& C) const;   
+ 
+ void print_rows() const;
+ void print_cols() const ;
+ 
+Sparse_GF2 res_deleted_cols(const std::vector<vector<int>>& Positions) const;
+void del_identical_cols(Sparse_GF2& B,int max_cols, std::vector<vector<int>>& Positions, itpp::vec& p) ;
+
+void error_del_cols(const std::vector<vector<int>>& Positions) ;
 };
+void print_surf_lattice(const Sparse_GF2 &error);
 void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& syndrome,Sparse_GF2& Sparse_output_eOSD,int& suc_order,int OSD_order=100);
-bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const GF2mat &Hx, const GF2mat& Gx, const GF2mat& G,const GF2mat &real_e,const nodes checks[],const nodes errors[],const vec&pv_dec,double& num_iter, const int& lmax,const int &wt,  const int& debug, const int& OSD_order,Sparse_GF2& Sparse_zero_rvec, GF2mat& zero_mat1);
+bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const GF2mat &Hx, const GF2mat& Gx, const GF2mat& G,const GF2mat &real_e,const nodes checks[],const nodes errors[],const vec&pv_dec,double& num_iter, const int& lmax,const int &wt,  const int& debug, const int& schedule,const int& OSD_order,Sparse_GF2& Sparse_zero_rvec, GF2mat& zero_mat1);
  void quan_s_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,const GF2mat& syndrome,const vec &pv,int&c, int& v,  Sparse_GF2& output_e, vec &LR,const int &debug,double alpha=1);
+ void quan_Ran_s_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,const GF2mat& syndrome,const vec &pv,int&c, int& v,  Sparse_GF2& output_e, vec &LR,const int &debug,double alpha=1);
+ void quan_s_C_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,const GF2mat& syndrome,const vec &pv,int& c, int& v,  Sparse_GF2& output_e, vec &LR,const int &debug,double alpha=1);
  void quan_p_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,const GF2mat& syndrome,const vec &pv,int c, int v,  Sparse_GF2& output_e, vec &LR,int debug,double alpha=1);
 #endif // SPARSE_GF2_H

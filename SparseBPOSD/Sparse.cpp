@@ -1,6 +1,12 @@
 #include "Sparse.h"
 #include"BP.h"
 #include"modified_BP.h"
+#include <unistd.h> 
+
+unsigned seed = (std::chrono::system_clock::now().time_since_epoch().count())^(100*getpid());
+
+std::default_random_engine engine(seed);
+
 
 Sparse_GF2::Sparse_GF2() : num_rows(0), num_cols(0) {}
 	
@@ -49,7 +55,17 @@ Sparse_GF2::Sparse_GF2(int a, int b) : num_rows(a), num_cols(b) {
         }
         return col_mat[j];
 	}
+int Sparse_GF2::get(int i, int j) const {
+    if (i < 0 || i >= num_rows || j < 0 || j >= num_cols) {
+        throw std::out_of_range("Indices are out of bounds.");
+    }
 
+    // Check if column j is in row i.
+    if (std::find(row_mat[i].begin(), row_mat[i].end(), j) != row_mat[i].end()) {
+        return 1;
+    }
+    return 0;
+}
 Sparse_GF2 Sparse_GF2::operator*(const Sparse_GF2& other) const {
     if (num_cols != other.num_rows) {
         throw std::runtime_error("Matrix dimensions mismatch for multiplication.");
@@ -229,6 +245,39 @@ void Sparse_GF2::row_to_col() {
     }
 
 
+
+void Sparse_GF2::ins_row(int i, const Sparse_GF2& A) {
+    if (A.num_rows != 1 || A.num_cols != num_cols) {
+        throw std::runtime_error("ins_row:Dimension mismatch when inserting a row.");
+    }
+    if (i < 0 || i > num_rows) {
+        throw std::out_of_range("ins_row:Row index out of bounds.");
+    }
+    
+    row_mat.insert(row_mat.begin() + i, A.row_mat[0]);
+    num_rows++;
+    
+    // Update col_mat
+	this->row_to_col();
+}
+
+void Sparse_GF2::ins_col(int i, const Sparse_GF2& A) {
+    if (A.num_cols != 1 || A.num_rows != num_rows) {
+        throw std::runtime_error("ins_col:Dimension mismatch when inserting a column.");
+    }
+    if (i < 0 || i > num_cols) {
+        throw std::out_of_range("ins_col: Column index out of bounds.");
+    }
+
+    col_mat.insert(col_mat.begin() + i, A.col_mat[0]);
+    num_cols++;
+    
+    // Update row_mat
+this->col_to_row();
+}
+
+
+
 Sparse_GF2 Sparse_GF2::row_gaussian(int& rankH) const {
 		
         Sparse_GF2 H = *this;
@@ -250,15 +299,16 @@ Sparse_GF2 Sparse_GF2::row_gaussian(int& rankH) const {
         	if (H.row_mat[pivot_row].size()!=0)
 			{
 				pivot_col=H.row_mat[pivot_row][0];
-				
+				//cout<<"pivot row is "<<pivot_row<<" col is "<<pivot_col<<endl;
 				for (int i=0;i<r;i++)
 					{	if(i!=pivot_row)
 						{	
 							if (find(H.row_mat[i].begin(), H.row_mat[i].end(), pivot_col) != H.row_mat[i].end()) 
-							{
+							{	
+								//cout<<"add pivot row to "<<i<<endl;
 								//false means donot update column representation here
 								H.add_rows(pivot_row,i,false);
-								permutation.add_rows(pivot_row,false);
+								permutation.add_rows(pivot_row,i,false);
 							}
 						}
 					}	
@@ -289,7 +339,30 @@ Sparse_GF2 Sparse_GF2::row_gaussian(int& rankH) const {
 	permutation.row_to_col();
 	  return permutation;
 }
-	
+	void Sparse_GF2::print_rows() const {
+    for (int i = 0; i < num_rows; i++) {
+        std::cout << i << "th row: ";
+        for (const int& col_idx : row_mat[i]) {
+            std::cout << col_idx << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+void Sparse_GF2::print_cols() const {
+    for (int i = 0; i < num_cols; i++) {
+        std::cout << i << "th col: ";
+        for (const int& row_idx : col_mat[i]) {
+            std::cout << row_idx << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+
+
+
+
 Sparse_GF2 Sparse_GF2::inverse() const {
     
 	if (num_rows!= num_cols) {
@@ -313,7 +386,9 @@ Sparse_GF2 Sparse_GF2::inverse() const {
         while (pivot_row<r)
         {
         	if (H.row_mat[pivot_row].size()!=0){pivot_col=H.row_mat[pivot_row][0];}
-			else{		
+			else{
+					cout<<"H size:"<<H.rows()<<"*"<<H.cols()<<endl;
+					if (H.rows()<50 and H.cols()<50){cout<<H.to_GF2mat()<<endl;}
             throw std::runtime_error("inverse: there are empty rows, this is not an invertible matrix");
 			}
         
@@ -579,6 +654,31 @@ Sparse_GF2 Sparse_GF2::transpose() const {
             col_mat[j].erase(std::remove(col_mat[j].begin(), col_mat[j].end(), i), col_mat[j].end());
         }
     }
+//check if A*B==C faster
+bool Sparse_GF2::checkProductEquality(const Sparse_GF2& B, const Sparse_GF2& C) const {
+    if (num_cols != B.num_rows || num_rows != C.num_rows || B.num_cols != C.num_cols) {
+        throw std::runtime_error("checkProductEquality: Matrix dimensions mismatch for multiplication and comparison.");
+    }
+
+    for (int i = 0; i < num_rows; ++i) {
+        for (int j = 0; j < B.num_cols; ++j) {
+            int sum = 0;
+            for (int k : row_mat[i]) {
+                for (int l : B.col_mat[j]) {
+                    if (k == l) {
+                        sum++;
+                    }
+                }
+            }
+            int resulting_entry = sum % 2;
+            bool c_entry = std::find(C.row_mat[i].begin(), C.row_mat[i].end(), j) != C.row_mat[i].end();
+            if (resulting_entry != c_entry) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& syndrome,Sparse_GF2& Sparse_output_e,int& suc_order,int OSD_order) //r is the rank of H
 { 
@@ -598,8 +698,6 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
 		}
     }
   
-
-
 	ivec perm1=sort_index(LLR);
 	Sparse_GF2 H1=H;	
 	Sparse_GF2 perm1_mat=H1.permute_cols(perm1);
@@ -612,15 +710,13 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
 	Sparse_GF2 col_perm=H1.col_gaussian(rankH);
 	H1=H1*col_perm;
 	
-	
 	 //cout<<"Sparse OSD: after col_gaussian H is "<<H1.to_GF2mat()<<endl;
 	Sparse_GF2 row_perm=H1.row_gaussian(rankH);
 	
 	H1=row_perm*H1;
 	//cout<<"Sparse OSD: after row_gaussian H is "<<H1.to_GF2mat()<<endl;
 	
-
-		//cout<<"\n after H1 is\n"<<H1.to_GF2mat()<<endl;
+	//cout<<"\n after H1 is\n"<<H1.to_GF2mat()<<endl;
 	Sparse_GF2  sparse_s(syndrome);
 	sparse_s=row_perm*sparse_s;
 	
@@ -636,7 +732,6 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
  if (H1.cols()>rankH){H_T=H1.get_submatrix(0,rankH,rankH-1,n-1);}
   Sparse_GF2 HS_inv=H_S.inverse();
  
-
   Sparse_GF2 e_S=HS_inv*sparse_s;  
 
  Sparse_GF2 e_T(1,1);
@@ -713,13 +808,21 @@ void Sparse_OSD(const Sparse_GF2& H,vec& LR,const GF2mat& denseH,const GF2mat& s
    }
          vector<int> vec_e_S=e_S.get_col(0);
 		  vector<int> vec_e_T=e_T.get_col(0);
-	
 		  
 		for (int i=0;i<vec_e_S.size();i++){Sparse_output_e.set(vec_e_S[i],0,1);}
 		  
 		for (int i=0;i<vec_e_T.size();i++){Sparse_output_e.set(vec_e_T[i]+vec_e_S.size(),0,1);}
-		Sparse_output_e=perm1_mat*col_perm*Sparse_output_e;	
+		Sparse_output_e=perm1_mat*col_perm*Sparse_output_e;		
 		
+/*
+	   Sparse_GF2  Ssyndrome(syndrome);
+	   //H.checkProductEquality(Sparse_output_e, Ssyndrome);
+	   
+	  if(H.checkProductEquality(Sparse_output_e, Ssyndrome))		
+	  {
+		  cout<<"OSD fails"<<endl;
+	  }
+	  */
 }
 /*
 void initialize_checks (const Sparse_GF2mat &H, nodes checks[]){
@@ -742,7 +845,7 @@ void initialize_checks (const Sparse_GF2mat &H, nodes checks[]){
 }
 */
 
-bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const GF2mat &Hx, const GF2mat& Gx, const GF2mat& G,const GF2mat &real_e,const nodes checks[],const nodes errors[],const vec&pv_dec,double& num_iter, const int& lmax,const int &wt,  const int& debug, const int& OSD_order,Sparse_GF2& Sparse_zero_rvec, GF2mat& zero_mat1)
+bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const GF2mat &Hx, const GF2mat& Gx, const GF2mat& G,const GF2mat &real_e,const nodes checks[],const nodes errors[],const vec&pv_dec,double& num_iter, const int& lmax,const int &wt,  const int& debug, const int& schedule,const int& OSD_order,Sparse_GF2& Sparse_zero_rvec, GF2mat& zero_mat1)
 {
  int c=Hx.rows();
  int v=Hx.cols();
@@ -778,30 +881,44 @@ bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const 
 	  
 	  //GF2mat output_e(v,1);	
 	  vec LR(v);	
-	  bool schedule=debug&2;
+	
       for (int l=1;l<=lmax;l++)
 	{		 
 			Sparse_GF2 Sparse_output_e(v,1);
-			if (schedule)
+			if (schedule==0)
 			{
 				quan_p_update(checks,errors, mcv,mvc,syndrome,pv_dec, c, v,Sparse_output_e,LR,debug);				
 			}
-	      else
+	      else if (schedule==1)
 			{		
 				quan_s_update(checks,errors, mcv,mvc,syndrome,pv_dec, c, v,Sparse_output_e,LR,debug);
+			}
+			 else if (schedule==2)
+			 {
+				 quan_s_C_update(checks,errors,mcv,mvc,syndrome,pv_dec, c,  v,  Sparse_output_e, LR, debug);
+			 }
+			 else if (schedule==3)
+			{		
+				quan_Ran_s_update(checks,errors, mcv,mvc,syndrome,pv_dec, c, v,Sparse_output_e,LR,debug);
 			}
 	    
 			//Sparse_GF2 Sparse_output_e(output_e);
 			
-			if (sparseH*Sparse_output_e==Sparse_syndrome)		   
+			 //sparseH*Sparse_output_e==Sparse_syndrome
+			if ( sparseH.checkProductEquality(Sparse_output_e, Sparse_syndrome) )		   
 			{					
-				  if(sparseL*(Sparse_output_e+Sparse_real_e)==Sparse_zero_rvec)
+					
+					//sparseL*(Sparse_output_e+Sparse_real_e)==Sparse_zero_rvec
+				  if(sparseL.checkProductEquality(Sparse_output_e+Sparse_real_e, Sparse_zero_rvec))
 					{
 						num_iter= num_iter+l;		
 						BP_suc++;
 						return true;
 					}	    
-				else{return false; }	    	  
+				else
+				{   syn_fail++;
+					return false;
+					}	    	  
 		}
 	}
       						
@@ -813,9 +930,9 @@ bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const 
 	  Sparse_OSD(sparseH,LR,Hx,syndrome,Sparse_output_eOSD,suc_order,OSD_order);
 	  /*
 	  GF2mat output_e(v,1);
-			  GF2mat Hright;
-			  GF2mat Hwrong;
-	   OSD(LR, Hx,syndrome,output_e,suc_order,Hright);
+			  //GF2mat Hright;
+			  //GF2mat Hwrong;
+	   OSD(LR, Hx,syndrome,output_e,suc_order);
 		if (Hwrong==Hright){}
 		else 
 		{
@@ -826,8 +943,8 @@ bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const 
 	   cout<<"error : output_e is \n"<<output_e.transpose()<<"\n wrong one:\n"<<(Sparse_output_eOSD.to_GF2mat()).transpose()<<endl;
    }
    */
-   
-	  if(sparseL*(Sparse_output_eOSD+Sparse_real_e)==Sparse_zero_rvec)
+   //checkProductEquality(sparseL, Sparse_output_e+Sparse_real_e, Sparse_zero_rvec)
+	  if(sparseL.checkProductEquality(Sparse_output_eOSD+Sparse_real_e, Sparse_zero_rvec))
 	    {
 	      OSD_suc++;
 		  if (suc_order==0){OSD_0_suc++;}
@@ -852,6 +969,37 @@ bool Fcircuit_decoder(const Sparse_GF2 &sparseH,const Sparse_GF2 &sparseL,const 
     double ipr;
    for (int j=0;j<v;j++)
     {
+		int vj_degree=errors[j].degree;
+		ipr=(1-pv[j])/pv[j];
+		LR(j)=ipr;
+		for (int i=0;i<vj_degree;i++)
+		{     
+			int ci=(errors[j].neighbors)(i);
+			update_ci_to_vj(checks, errors,mcv, mvc,ci,j,syndrome(ci,0));
+			LR(j)=LR(j)*mcv(ci,j);      	
+	   } 
+		//ci is the ith neibor of vj:
+		for (int i=0;i<vj_degree;i++)
+		{
+			//  update the  v_j to c_i massage:      
+			int ci=(errors[j].neighbors)(i);
+			update_vj_to_ci(checks, errors,mcv, mvc,j,ci, ipr);     		
+		}
+		if (LR(j)<1) {output_e.set(j,0,1);}
+     }  
+}
+
+ void quan_Ran_s_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,const GF2mat& syndrome,const vec &pv,int& c, int& v,  Sparse_GF2& output_e, vec &LR,const int& debug,double alpha)
+{  
+    double ipr;
+	 std::vector<int> ranvec(v);
+
+    // Fill the vector with values 0, 1, 2, ..., v-1
+    std::iota(ranvec.begin(), ranvec.end(), 0);
+	std::shuffle(ranvec.begin(), ranvec.end(), engine);
+	
+	for (int j : ranvec) {
+
 		int vj_degree=errors[j].degree;
 		ipr=(1-pv[j])/pv[j];
 		LR(j)=ipr;
@@ -906,3 +1054,70 @@ void quan_p_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,c
     }
 
 }
+
+void quan_s_C_update(const nodes checks[],const nodes errors[],mat &mcv,mat& mvc,const GF2mat& syndrome,const vec &pv,int& c, int& v,  Sparse_GF2& output_e, vec &LR,const int& debug,double alpha)
+{
+	 double ipr;
+    double final_pr;
+    
+   for (int j=0;j<c;j++)
+      {
+	 int cj_degree=checks[j].degree;
+
+	 //vi is the ith neibor of cj:
+	 for (int i=0;i<cj_degree;i++)
+	   {
+	     //  update the  v_i to c_j massage:      
+	     int vi=(checks[j].neighbors)(i);
+	     ipr=(1-pv[vi])/pv[vi];
+	     update_vj_to_ci(checks, errors,mcv, mvc,vi,j, ipr);          
+	   }	 
+	 for (int i=0;i<cj_degree;i++)
+	   {     
+	     int vi=(checks[j].neighbors)(i);
+	     if( (debug/16)%2==1){ update_ci_to_vj_MS( checks, errors,mcv, mvc,j,vi,syndrome(j,0));}
+	     else {update_ci_to_vj( checks, errors,mcv, mvc,j,vi,syndrome(j,0));}     
+     
+	   } 
+	 //  cout<<j<<"   "<<final_pr<<endl;
+   
+      }
+   
+   //calculate LR:
+   for (int j=0;j<v;j++)
+     {
+       ipr=(1-pv[j])/pv[j];
+       final_pr=ipr;
+       int vj_degree=errors[j].degree;
+       for (int i=0;i<vj_degree;i++)
+	 {
+   
+	   int ci=(errors[j].neighbors)(i);
+	   final_pr=final_pr*mcv(ci,j);
+	 }
+       LR(j)=final_pr;
+       output_e.set(j,0,final_pr<1? 1:0);   
+     }
+}
+void print_surf_lattice(const Sparse_GF2 &error)
+{
+  // cout<<"\n"<<error<<endl;
+  cout<<"\n";
+  int n=error.rows();
+  int d=sqrt(n);
+  if (d*d==n)
+    {
+      for (int r=0;r<d;r++)
+	{
+	  cout<<r<<"th row: ";
+	  for (int c=0;c<d;c++)	    
+	    {
+	      if (error.get(r*d+c,0)==1){cout<<1;}
+	      else {cout<<".";}
+	    }
+	  cout<<endl;
+	}
+    }
+    cout<<"\n";
+}
+

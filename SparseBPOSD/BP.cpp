@@ -7,6 +7,7 @@
 #include <random>
 #include <chrono>
 #include <thread>
+#include <unistd.h> 
 
 
 #include"BP.h"
@@ -160,7 +161,7 @@ std::vector<double> generateRandomBatch(int batchSize)
 {
     // Get a seed value from the current time
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-    
+     seed ^= 100*getpid(); 
     // Initialize the random engine with the seed
     std::default_random_engine generator(seed);
     
@@ -469,6 +470,7 @@ void err_pos1(const GF2mat &error)
       }
     cout<<endl;
 }
+
 void err_pos2(const GF2mat &error)
 {
   // cout<<"\n"<<error<<endl;
@@ -490,6 +492,8 @@ void err_pos2(const GF2mat &error)
     }
     cout<<"\n";
 }
+
+
 
 int GF2mat_rank(const GF2mat& H){
 
